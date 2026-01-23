@@ -1,15 +1,20 @@
 import requests
 import pandas as pd
 from datetime import datetime
+import pytz
 import os
 
 RUC = "20504743307"
 URL = f"https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti={RUC}"
 CARPETA_DATA = "data"
-fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+
+zona_peru = pytz.timezone('America/Lima')
+ahora_peru = datetime.now(zona_peru)
+fecha_hoy = ahora_peru.strftime("%Y-%m-%d")
+
 nombre_archivo = f"visitas_vivienda_{fecha_hoy}.csv"
 
-print(f"Descarga del Día: {fecha_hoy}")
+print(f"Iniciando descarga para la fecha: {fecha_hoy} (Hora Perú: {ahora_peru.strftime('%H:%M:%S')})")
 
 if not os.path.exists(CARPETA_DATA):
     os.makedirs(CARPETA_DATA)
@@ -33,11 +38,12 @@ try:
         if len(df) > 1:
             ruta_final = os.path.join(CARPETA_DATA, nombre_archivo)
             df.to_csv(ruta_final, index=False, encoding='utf-8-sig', sep=',')
-            print(f"Guardado en {ruta_final} ({len(df)} registros)")
+            print(f"Guardado exitoso: {ruta_final} ({len(df)} registros)")
         else:
-            print("Tabla vacía (sin visitas hoy o feriado).")
+            print(f"Tabla encontrada pero vacía o solo cabeceras. Fecha: {fecha_hoy}")
     else:
-        print("No se encontraron tablas.")
+        print("No se encontraron tablas en el HTML.")
 
 except Exception as e:
     print(f"ERROR: {e}")
+    exit(1)
