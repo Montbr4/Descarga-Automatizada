@@ -3,10 +3,10 @@ name: Descarga Automatizada Diario
 on:
   schedule:
     - cron: '50 4 * * *'
-  workflow_dispatch:
+  workflow_dispatch: 
 
 permissions:
-  contents: write
+  contents: write 
 
 jobs:
   descargar:
@@ -26,17 +26,23 @@ jobs:
         
       - name: Correr script
         run: python scraper.py
+      
+      - name: Verificar archivos generados
+        run: ls -R
         
       - name: Guardar cambios
         run: |
           git config --global user.name "Bot de Datos"
           git config --global user.email "bot@github.com"
+          
+          # Intentamos agregar la carpeta data (si existe)
           git add data/
-          # Verificamos si hay cambios antes de hacer commit para no generar error si no hubo tabla nueva
+          
+          # Verificamos si hay algo en el 'stage' para commitear
           if git diff --staged --quiet; then
-            print("No hay cambios para guardar.")
+            echo "No hay cambios para guardar."
           else
             git commit -m "Nuevos datos: $(date +'%Y-%m-%d') [skip ci]"
-            git pull --rebase origin main # Evita conflictos si hay commits nuevos
+            git pull --rebase origin main
             git push
           fi
