@@ -23,7 +23,7 @@ jobs:
           
       - name: Instalar librerías
         run: pip install -r requirements.txt
-
+        
       - name: Correr script
         run: python scraper.py
       
@@ -32,22 +32,20 @@ jobs:
           git config --global user.name "Bot de Datos"
           git config --global user.email "bot@github.com"
           
-          # Agregamos la carpeta data al control de versiones
           git add data/
           
-          # Verificamos si hay cambios antes de hacer commit para evitar errores
           if git diff --staged --quiet; then
-            echo "No hay nuevos datos para guardar hoy."
+            echo "No hay datos nuevos para guardar."
           else
             git commit -m "Datos: $(date +'%Y-%m-%d') [skip ci]"
             git pull --rebase origin main
             git push
           fi
           
-      - name: Subir Evidencia Debug
-        if: always() 
+      - name: Subir Evidencia (Si falla)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: evidencia-png
+          name: debug-evidencia
           path: *.png
           retention-days: 5
