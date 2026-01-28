@@ -1,5 +1,6 @@
-requests
 pandas
 lxml
 openpyxl
 pytz
+selenium
+webdriver-manager
