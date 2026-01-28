@@ -19,7 +19,7 @@ ahora_peru = datetime.now(zona_peru)
 fecha_hoy = ahora_peru.strftime("%Y-%m-%d")
 nombre_archivo = f"visitas_vivienda_{fecha_hoy}.csv"
 
-print(f"Iniciando: {fecha_hoy} {ahora_peru.strftime('%H:%M:%S')}")
+print(f"Iniciando proceso: {fecha_hoy} {ahora_peru.strftime('%H:%M:%S')}")
 
 if not os.path.exists(CARPETA_DATA):
     os.makedirs(CARPETA_DATA)
@@ -36,9 +36,12 @@ try:
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
+    print(f"Entrando a: {URL}")
     driver.get(URL)
+
     time.sleep(5)
     
+
     boton_encontrado = None
     posibles_xpaths = [
         "//button[contains(., 'Buscar')]", 
@@ -59,8 +62,12 @@ try:
             continue
             
     if boton_encontrado:
+        print("Botón encontrado. Ejecutando clic")
         driver.execute_script("arguments[0].click();", boton_encontrado)
+    else:
+        print("Aviso: No se detectó botón. Esperando carga automática")
     
+    print("Esperando 15 segundos para que la tabla se llene")
     time.sleep(15)
 
     html_cargado = driver.page_source
@@ -74,24 +81,27 @@ try:
             break
             
     if df_final is None and len(tablas) > 0:
+        print("No se detectaron columnas clave. Usando tabla más grande.")
         df_final = max(tablas, key=len)
 
     if df_final is not None:
         df_final = df_final.dropna(how='all')
         ruta_final = os.path.join(CARPETA_DATA, nombre_archivo)
+        
         df_final.to_csv(ruta_final, index=False, encoding='utf-8-sig', sep=',')
         
         if len(df_final) > 1:
-            print(f"EXITO: {ruta_final}")
+            print(f"¡ÉXITO! Archivo guardado en: {ruta_final}")
+            print(f"Filas: {len(df_final)}")
         else:
-            print("TABLA VACIA")
+            print("TABLA VACÍA (0 registros). Se guardó solo encabezados.")
             driver.save_screenshot("debug_vacia.png")
     else:
-        print("ERROR: SIN TABLAS")
+        print("ERROR: No se encontró ninguna tabla.")
         driver.save_screenshot("debug_error.png")
 
 except Exception as e:
-    print(f"ERROR: {e}")
+    print(f"ERROR CRÍTICO: {e}")
     if driver:
         driver.save_screenshot("debug_crash.png")
 
