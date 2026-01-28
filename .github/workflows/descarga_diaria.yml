@@ -2,7 +2,7 @@ name: Descarga Automatizada Diario
 
 on:
   schedule:
-    - cron: '50 4 * * *'
+    - cron: '40 4 * * *'
   workflow_dispatch: 
 
 permissions:
@@ -34,15 +34,19 @@ jobs:
         run: |
           git config --global user.name "Bot de Datos"
           git config --global user.email "bot@github.com"
-          
-          # Intentamos agregar la carpeta data (si existe)
           git add data/
-          
-          # Verificamos si hay algo en el 'stage' para commitear
           if git diff --staged --quiet; then
-            echo "No hay cambios para guardar."
+            echo "Sin cambios"
           else
-            git commit -m "Nuevos datos: $(date +'%Y-%m-%d') [skip ci]"
+            git commit -m "Datos: $(date +'%Y-%m-%d') [skip ci]"
             git pull --rebase origin main
             git push
           fi
+          
+      - name: Subir Evidencia Debug
+        if: always() 
+        uses: actions/upload-artifact@v4
+        with:
+          name: evidencia-png
+          path: *.png
+          retention-days: 5
