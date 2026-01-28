@@ -23,7 +23,7 @@ fecha_busqueda = ahora_peru.strftime("%d/%m/%Y")
 
 nombre_archivo = f"visitas_vivienda_{fecha_hoy}.csv"
 
-print(f"--- INICIANDO PROCESO: {fecha_hoy} (Buscando data de: {fecha_busqueda}) ---")
+print(f"--- INICIANDO PROCESO: {fecha_hoy} (Buscando: {fecha_busqueda}) ---")
 
 if not os.path.exists(CARPETA_DATA):
     os.makedirs(CARPETA_DATA)
@@ -46,67 +46,100 @@ try:
     print(f"2. Entrando a: {URL}")
     driver.get(URL)
     
-    print(f"3. Configurando rango de fechas a: {fecha_busqueda}")
-    try:
-        input_inicio = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[contains(@id, 'fec') and contains(@id, 'ini')] | //input[@name='fec_inicio']")))
-        input_fin = driver.find_element(By.XPATH, "//input[contains(@id, 'fec') and contains(@id, 'fin')] | //input[@name='fec_fin']")
-        
-        driver.execute_script("arguments[0].value = '';", input_inicio)
-        input_inicio.send_keys(fecha_busqueda)
-        
-        driver.execute_script("arguments[0].value = '';", input_fin)
-        input_fin.send_keys(fecha_busqueda)
-        print("   -> Fechas ingresadas correctamente.")
-        
-    except Exception as e:
-        print(f"   -> ADVERTENCIA: No se pudieron setear las fechas automáticamente ({e}). Se usará la fecha por defecto.")
+    time.sleep(3) 
 
-    print("4. Buscando botón y ejecutando búsqueda...")
-    boton_encontrado = None
-    xpaths_posibles = [
-        "//button[contains(., 'Buscar')]", 
-        "//input[@value='Buscar']",
-        "//*[@id='btnBuscar']"
-    ]
+    print(f"3. Configurando rango de fechas a: {fecha_busqueda}")
     
-    for xpath in xpaths_posibles:
+    selectores_inicio = ["fec_inicio", "txtFechaInicio", "inicio", "fechainicio"]
+    selectores_fin = ["fec_fin", "txtFechaFin", "fin", "fechafin"]
+    
+    input_inicio = None
+    input_fin = None
+
+    for sel in selectores_inicio:
         try:
-            btn = driver.find_element(By.XPATH, xpath)
-            if btn.is_displayed():
-                boton_encontrado = btn
-                break
+            input_inicio = driver.find_element(By.XPATH, f"//input[@id='{sel}' or @name='{sel}']")
+            print(f"   -> Campo Inicio encontrado con selector: {sel}")
+            break
         except:
             continue
             
+    if not input_inicio:
+        try:
+            input_inicio = driver.find_element(By.XPATH, "(//input[contains(@class, 'fecha') or contains(@id, 'fec')])[1]")
+            print("   -> Campo Inicio encontrado por posición genérica.")
+        except:
+            print("   -> ERROR: No se encontró campo Inicio.")
+
+    for sel in selectores_fin:
+        try:
+            input_fin = driver.find_element(By.XPATH, f"//input[@id='{sel}' or @name='{sel}']")
+            print(f"   -> Campo Fin encontrado con selector: {sel}")
+            break
+        except:
+            continue
+            
+    if input_inicio:
+        driver.execute_script(f"arguments[0].value = '{fecha_busqueda}';", input_inicio)
+    
+    if input_fin:
+        driver.execute_script(f"arguments[0].value = '{fecha_busqueda}';", input_fin)
+        
+    print("   -> Fechas inyectadas vía JS.")
+
+    print("4. Buscando botón y ejecutando búsqueda...")
+    boton_encontrado = None
+    
+    xpaths_boton = [
+        "//button[contains(translate(., 'BUSCAR', 'buscar'), 'buscar')]",
+        "//input[@type='submit']",
+        "//*[@id='btnBuscar']",
+        "//button[@id='btn_buscar']"
+    ]
+    
+    for xpath in xpaths_boton:
+        try:
+            btns = driver.find_elements(By.XPATH, xpath)
+            for btn in btns:
+                if btn.is_displayed():
+                    boton_encontrado = btn
+                    print(f"   -> Botón detectado: {xpath}")
+                    break
+            if boton_encontrado: break
+        except:
+            continue
+
     if boton_encontrado:
         driver.execute_script("arguments[0].click();", boton_encontrado)
         print("   -> Clic realizado.")
     else:
-        print("ERROR: No se encontró el botón de búsqueda.")
+        print("ERROR CRÍTICO: No se encontró el botón de búsqueda.")
+        with open("debug_error_html.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
 
-    print("5. Esperando carga de tabla (10s)...")
+    print("5. Esperando resultados (10s)...")
     time.sleep(10)
 
     print("6. Extrayendo datos...")
     html_cargado = driver.page_source
     
-
     try:
         tablas = pd.read_html(io.StringIO(html_cargado))
-    except ValueError:
+    except Exception as e:
+        print(f"   -> No se detectaron tablas HTML estándar: {e}")
         tablas = []
 
     df_final = None
-
+    
     for i, t in enumerate(tablas):
         cols = " ".join([str(c) for c in t.columns]).lower()
         if "visitante" in cols or "entidad" in cols or "motivo" in cols:
             print(f"   -> ¡Tabla de datos detectada en índice {i}!")
             df_final = t
             break
-            
+    
     if df_final is None and len(tablas) > 0:
-        print("   -> Cabeceras no reconocidas, usando la tabla con más datos.")
+        print("   -> Usando la tabla más grande encontrada por defecto.")
         df_final = max(tablas, key=len)
 
     if df_final is not None and not df_final.empty:
@@ -115,19 +148,17 @@ try:
         ruta_completa = os.path.join(CARPETA_DATA, nombre_archivo)
         df_final.to_csv(ruta_completa, index=False, encoding='utf-8-sig', sep=',')
         
-        if len(df_final) > 1:
-            print(f"ÉXITO: Datos guardados en {ruta_completa}")
-            print(f"   Filas encontradas: {len(df_final)}")
-        else:
-            print(f"AVISO: Archivo guardado pero parece vacío (0 visitas). Ruta: {ruta_completa}")
-            
+        print(f"ÉXITO: Archivo guardado en {ruta_completa}")
+        print(f"   Filas: {len(df_final)}")
+        print(f"   Columnas: {list(df_final.columns)}")
     else:
-        print("RESULTADO: No se encontraron tablas o datos para la fecha seleccionada.")
-        with open(os.path.join(CARPETA_DATA, nombre_archivo), 'w') as f:
+        print("ADVERTENCIA: No se extrajeron datos. Puede que no haya visitas hoy o falló la búsqueda.")
+        ruta_completa = os.path.join(CARPETA_DATA, nombre_archivo)
+        with open(ruta_completa, 'w') as f:
             f.write("Error,SinDatos\n")
 
 except Exception as e:
-    print(f"ERROR CRÍTICO: {e}")
+    print(f"ERROR CRÍTICO DEL PROCESO: {e}")
 
 finally:
     if driver:
