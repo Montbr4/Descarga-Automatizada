@@ -19,7 +19,7 @@ ahora_peru = datetime.now(zona_peru)
 fecha_hoy = ahora_peru.strftime("%Y-%m-%d")
 nombre_archivo = f"visitas_vivienda_{fecha_hoy}.csv"
 
-print(f"Iniciando descarga: {fecha_hoy} {ahora_peru.strftime('%H:%M:%S')}")
+print(f"Iniciando: {fecha_hoy} {ahora_peru.strftime('%H:%M:%S')}")
 
 if not os.path.exists(CARPETA_DATA):
     os.makedirs(CARPETA_DATA)
@@ -37,7 +37,6 @@ try:
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
     driver.get(URL)
-
     time.sleep(5)
     
     boton_encontrado = None
