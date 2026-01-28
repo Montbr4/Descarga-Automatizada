@@ -2,11 +2,11 @@ name: Descarga Automatizada Diario
 
 on:
   schedule:
-    - cron: '40 4 * * *'
-  workflow_dispatch:
+    - cron: '50 4 * * *'
+  workflow_dispatch: 
 
 permissions:
-  contents: write
+  contents: write 
 
 jobs:
   descargar:
@@ -27,6 +27,9 @@ jobs:
       - name: Correr script
         run: python scraper.py
       
+      - name: Verificar archivos generados
+        run: ls -R
+        
       - name: Guardar cambios
         run: |
           git config --global user.name "Bot de Datos"
@@ -35,17 +38,9 @@ jobs:
           git add data/
           
           if git diff --staged --quiet; then
-            echo "No hay datos nuevos para guardar."
+            echo "No hay cambios para guardar."
           else
-            git commit -m "Datos: $(date +'%Y-%m-%d') [skip ci]"
+            git commit -m "Nuevos datos: $(date +'%Y-%m-%d') [skip ci]"
             git pull --rebase origin main
             git push
           fi
-          
-      - name: Subir Evidencia (Si falla)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-evidencia
-          path: *.png
-          retention-days: 5
