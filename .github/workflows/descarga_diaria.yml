@@ -27,8 +27,8 @@ jobs:
       - name: Correr script
         run: python scraper.py
       
-      - name: Verificar archivos generados
-        run: ls -R
+      - name: Verificar archivos descargados (Debug)
+        run: ls -lh data/
         
       - name: Guardar cambios
         run: |
@@ -36,11 +36,11 @@ jobs:
           git config --global user.email "bot@github.com"
           
           git add data/
-          
+
           if git diff --staged --quiet; then
             echo "No hay cambios para guardar."
           else
-            git commit -m "Nuevos datos: $(date +'%Y-%m-%d') [skip ci]"
+            git commit -m "Reporte Excel: $(date +'%Y-%m-%d') [skip ci]"
             git pull --rebase origin main
             git push
           fi
