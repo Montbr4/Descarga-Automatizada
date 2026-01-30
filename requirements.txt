@@ -1,6 +1,3 @@
-pandas
-lxml
-openpyxl
-pytz
 selenium
 webdriver-manager
+pytz
