@@ -25,8 +25,8 @@ fecha_busqueda = ahora_peru.strftime("%d/%m/%Y")
 nombre_archivo_final = f"reporte_excel_{fecha_archivo}.xls"
 
 print(f"INICIANDO PROCESO")
-print(f"Fecha a buscar: {fecha_busqueda}")
-print(f"Tiempo de espera programado: 5 MINUTOS")
+print(f"Fecha: {fecha_busqueda}")
+print(f"Tiempo de espera programado: 1 MINUTO")
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
@@ -49,13 +49,13 @@ chrome_options.add_experimental_option("prefs", prefs)
 driver = None
 
 try:
-    print("1. Abriendo navegador")
+    print("1. Abriendo navegador...")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
     print(f"2. Entrando a: {URL}")
     driver.get(URL)
-    time.sleep(5)
+    time.sleep(3)
 
     print(f"3. Escribiendo fecha: {fecha_busqueda}")
     script_fechas = f"""
@@ -75,9 +75,8 @@ try:
     except:
         print("No se encontró botón Buscar (puede ser automático).")
 
-    print("5. ESPERANDO 5 MINUTOS A QUE CARGUE LA TABLA")
-    print("(Por favor no cerrar el proceso)")
-    time.sleep(300)
+    print("5. ESPERANDO 1 MINUTO A QUE CARGUE LA TABLA")
+    time.sleep(60)
     print("Tiempo de espera finalizado")
 
     print("6. Buscando botón EXCEL...")
@@ -125,8 +124,6 @@ try:
             
             time.sleep(1)
             tiempo_espera += 1
-            if tiempo_espera % 10 == 0:
-                print(f"   ... descargando ({tiempo_espera}s)")
             
         if descarga_completa and archivo_nuevo:
             ruta_origen = os.path.join(DOWNLOAD_DIR, archivo_nuevo)
@@ -138,16 +135,12 @@ try:
             shutil.move(ruta_origen, ruta_destino)
             tamano = os.path.getsize(ruta_destino)
             print(f"ÉXITO: Archivo guardado: {ruta_destino}")
-            print(f"Tamaño: {tamano} bytes")
-            
-            if tamano < 1000:
-                print("AVISO: El archivo es muy pequeño, revisa si contiene datos.")
+            print(f"   Tamaño: {tamano} bytes")
         else:
-            print("ERROR: No se detectó la descarga después de esperar.")
+            print("ERROR: No se detectó la descarga.")
             
     else:
-        print("ERROR: No apareció el botón EXCEL (Quizás no cargaron datos tras los 5 min).")
-        driver.save_screenshot("debug_timeout_excel.png")
+        print("ERROR: No apareció el botón EXCEL.")
 
 except Exception as e:
     print(f"ERROR CRÍTICO: {e}")
