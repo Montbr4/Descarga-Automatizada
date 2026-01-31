@@ -2,7 +2,7 @@ name: Descarga Automatizada Diario
 
 on:
   schedule:
-    - cron: '50 4 * * *'
+    - cron: '30 4 * * *'
   workflow_dispatch: 
 
 permissions:
@@ -27,7 +27,7 @@ jobs:
       - name: Correr script
         run: python scraper.py
       
-      - name: Verificar archivos descargados (Debug)
+      - name: Verificar archivos
         run: ls -lh data/
         
       - name: Guardar cambios
@@ -36,7 +36,7 @@ jobs:
           git config --global user.email "bot@github.com"
           
           git add data/
-
+          
           if git diff --staged --quiet; then
             echo "No hay cambios para guardar."
           else
