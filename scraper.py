@@ -19,14 +19,14 @@ DOWNLOAD_DIR = os.path.join(BASE_DIR, CARPETA_DATA)
 zona_peru = pytz.timezone('America/Lima')
 ahora_peru = datetime.now(zona_peru)
 
-fecha_archivo = ahora_peru.strftime("%Y-%m-%d")
-fecha_busqueda = ahora_peru.strftime("%d/%m/%Y")
+fecha_archivo = ahora_peru.strftime("%Y-%m-%d") 
+fecha_busqueda = ahora_peru.strftime("%d/%m/%Y") 
 
 nombre_archivo_final = f"reporte_excel_{fecha_archivo}.xls"
 
 print(f"INICIANDO PROCESO")
 print(f"Fecha: {fecha_busqueda}")
-print(f"Tiempo de espera programado: 1 MINUTO")
+print(f"Espera programada: 1 MINUTO")
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
@@ -49,7 +49,7 @@ chrome_options.add_experimental_option("prefs", prefs)
 driver = None
 
 try:
-    print("1. Abriendo navegador...")
+    print("1. Abriendo navegador")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
@@ -69,23 +69,24 @@ try:
 
     print("4. Ejecutando búsqueda")
     try:
-        btn_buscar = driver.find_element(By.XPATH, "//button[contains(., 'Buscar') or contains(., 'BUSCAR')]")
+        btn_buscar = driver.find_element(By.XPATH, "//button[contains(translate(., 'BUSCAR', 'buscar'), 'buscar')]")
         driver.execute_script("arguments[0].click();", btn_buscar)
-        print("Clic en Buscar realizado.")
+        print(" Clic en Buscar realizado.")
     except:
         print("No se encontró botón Buscar (puede ser automático).")
 
     print("5. ESPERANDO 1 MINUTO A QUE CARGUE LA TABLA")
     time.sleep(60)
-    print("Tiempo de espera finalizado")
+    print(" Tiempo de espera finalizado")
 
-    print("6. Buscando botón EXCEL...")
+    print("6. Buscando botón EXCEL")
     boton_excel = None
+    
     xpaths_excel = [
-        "//button[contains(., 'EXCEL')]",
-        "//a[contains(., 'EXCEL')]",
-        "//input[@value='EXCEL']",
-        "//img[contains(@src, 'excel')]/parent::a"
+        "//button[contains(., 'Excel')]",
+        "//button[contains(@class, 'buttons-excel')]",
+        "//span[contains(., 'Excel')]/parent::button",
+        "//button[contains(translate(., 'EXCEL', 'excel'), 'excel')]"
     ]
     
     for xpath in xpaths_excel:
@@ -94,6 +95,7 @@ try:
             for btn in btns:
                 if btn.is_displayed():
                     boton_excel = btn
+                    print(f"   -> Botón encontrado con: {xpath}")
                     break
             if boton_excel: break
         except:
@@ -108,7 +110,7 @@ try:
         tiempo_espera = 0
         descarga_completa = False
         archivo_nuevo = None
-        
+
         while tiempo_espera < 60:
             archivos_ahora = set(os.listdir(DOWNLOAD_DIR))
             nuevos = archivos_ahora - archivos_antes
@@ -137,10 +139,11 @@ try:
             print(f"ÉXITO: Archivo guardado: {ruta_destino}")
             print(f"   Tamaño: {tamano} bytes")
         else:
-            print("ERROR: No se detectó la descarga.")
+            print("ERROR: El botón se clickeó, pero no apareció ningún archivo nuevo.")
             
     else:
-        print("ERROR: No apareció el botón EXCEL.")
+        print("ERROR: Sigue sin encontrarse el botón Excel. Guardando captura de pantalla")
+        driver.save_screenshot("debug_error_excel.png")
 
 except Exception as e:
     print(f"ERROR CRÍTICO: {e}")
