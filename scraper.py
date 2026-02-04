@@ -44,10 +44,13 @@ try:
     
     print(f"2. Cargando página: {URL}")
     driver.get(URL)
-
-    print("3. Esperando 1 minuto a que la página cargue los datos por sí misma")
-    time.sleep(60) 
-    print(" Tiempo de espera finalizado.")
+    
+    print("3. INICIANDO ESPERA DE 5 MINUTOS para carga total de datos")
+    print("(El script se pausará aquí, por favor no cancelar)")
+    
+    time.sleep(300)
+    
+    print("Tiempo de espera de 5 minutos finalizado")
 
     print("4. Buscando botón 'Excel'")
     boton_excel = None
@@ -74,13 +77,13 @@ try:
         archivos_antes = set(os.listdir(DOWNLOAD_DIR))
         
         driver.execute_script("arguments[0].click();", boton_excel)
-        print("Clic realizado! Esperando archivo")
+        print("Clic realizado! Esperando descarga física")
         
         tiempo = 0
         descarga_completa = False
         archivo_descargado = None
         
-        while tiempo < 60:
+        while tiempo < 120:
             archivos_ahora = set(os.listdir(DOWNLOAD_DIR))
             nuevos = archivos_ahora - archivos_antes
             
@@ -95,7 +98,7 @@ try:
                 
             time.sleep(1)
             tiempo += 1
-            if tiempo % 10 == 0: print(f"Esperando ({tiempo}s)")
+            if tiempo % 10 == 0: print(f"Descargando ({tiempo}s)")
 
         if descarga_completa and archivo_descargado:
             ruta_origen = os.path.join(DOWNLOAD_DIR, archivo_descargado)
@@ -109,11 +112,15 @@ try:
             
             shutil.move(ruta_origen, ruta_destino)
             
+            tamano = os.path.getsize(ruta_destino)
             print(f"ÉXITO TOTAL: Archivo guardado en:")
-            print(f"-{ruta_destino}")
-            print(f"Tamaño: {os.path.getsize(ruta_destino)} bytes")
+            print(f"-> {ruta_destino}")
+            print(f"-> Tamaño: {tamano} bytes")
+            
+            if tamano < 1000:
+                print("AVISO: El archivo sigue siendo pequeño. Si la página decía '0 Registros', es normal.")
         else:
-            print("ERROR: Se hizo clic pero no apareció el archivo en la carpeta.")
+            print("ERROR: Se hizo clic pero no apareció el archivo en la carpeta (Timeout descarga).")
             print(f"Contenido carpeta: {os.listdir(DOWNLOAD_DIR)}")
             
     else:
