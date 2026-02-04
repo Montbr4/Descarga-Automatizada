@@ -1,8 +1,7 @@
 import os
 import time
 import shutil
-from datetime import datetime
-import pytz
+import glob
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -16,17 +15,7 @@ CARPETA_DATA = "data"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DOWNLOAD_DIR = os.path.join(BASE_DIR, CARPETA_DATA)
 
-zona_peru = pytz.timezone('America/Lima')
-ahora_peru = datetime.now(zona_peru)
-
-fecha_archivo = ahora_peru.strftime("%Y-%m-%d") 
-fecha_busqueda = ahora_peru.strftime("%d/%m/%Y") 
-
-nombre_archivo_final = f"reporte_excel_{fecha_archivo}.xls"
-
-print(f"INICIANDO PROCESO")
-print(f"Fecha: {fecha_busqueda}")
-print(f"Espera programada: 1 MINUTO")
+print("INICIANDO PROCESO")
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
@@ -49,101 +38,87 @@ chrome_options.add_experimental_option("prefs", prefs)
 driver = None
 
 try:
-    print("1. Abriendo navegador")
+    print("1. Abriendo navegador...")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
-    print(f"2. Entrando a: {URL}")
+    print(f"2. Cargando página: {URL}")
     driver.get(URL)
-    time.sleep(3)
 
-    print(f"3. Escribiendo fecha: {fecha_busqueda}")
-    script_fechas = f"""
-    var fecha = '{fecha_busqueda}';
-    var inputs = document.querySelectorAll("input[id*='fec'], input[id*='Fec'], input[name*='fec']");
-    for(var i=0; i<inputs.length; i++) {{
-        inputs[i].value = fecha;
-    }}
-    """
-    driver.execute_script(script_fechas)
+    print("3. Esperando 1 minuto a que la página cargue los datos por sí misma")
+    time.sleep(60) 
+    print(" Tiempo de espera finalizado.")
 
-    print("4. Ejecutando búsqueda")
-    try:
-        btn_buscar = driver.find_element(By.XPATH, "//button[contains(translate(., 'BUSCAR', 'buscar'), 'buscar')]")
-        driver.execute_script("arguments[0].click();", btn_buscar)
-        print(" Clic en Buscar realizado.")
-    except:
-        print("No se encontró botón Buscar (puede ser automático).")
-
-    print("5. ESPERANDO 1 MINUTO A QUE CARGUE LA TABLA")
-    time.sleep(60)
-    print(" Tiempo de espera finalizado")
-
-    print("6. Buscando botón EXCEL")
+    print("4. Buscando botón 'Excel'")
     boton_excel = None
     
-    xpaths_excel = [
-        "//button[contains(., 'Excel')]",
+    xpaths = [
+        "//button[contains(., 'Excel')]", 
         "//button[contains(@class, 'buttons-excel')]",
-        "//span[contains(., 'Excel')]/parent::button",
-        "//button[contains(translate(., 'EXCEL', 'excel'), 'excel')]"
+        "//span[contains(., 'Excel')]/parent::button"
     ]
     
-    for xpath in xpaths_excel:
+    for xpath in xpaths:
         try:
             btns = driver.find_elements(By.XPATH, xpath)
             for btn in btns:
                 if btn.is_displayed():
                     boton_excel = btn
-                    print(f"   -> Botón encontrado con: {xpath}")
+                    print(f"Botón encontrado: {xpath}")
                     break
             if boton_excel: break
         except:
             continue
-            
+
     if boton_excel:
         archivos_antes = set(os.listdir(DOWNLOAD_DIR))
         
         driver.execute_script("arguments[0].click();", boton_excel)
-        print("Clic en EXCEL realizado. Iniciando descarga")
+        print("Clic realizado! Esperando archivo")
         
-        tiempo_espera = 0
+        tiempo = 0
         descarga_completa = False
-        archivo_nuevo = None
-
-        while tiempo_espera < 60:
+        archivo_descargado = None
+        
+        while tiempo < 60:
             archivos_ahora = set(os.listdir(DOWNLOAD_DIR))
             nuevos = archivos_ahora - archivos_antes
             
             for f in nuevos:
                 if not f.endswith(".crdownload") and not f.endswith(".tmp"):
-                    archivo_nuevo = f
+                    archivo_descargado = f
                     descarga_completa = True
                     break
             
             if descarga_completa:
                 break
-            
+                
             time.sleep(1)
-            tiempo_espera += 1
+            tiempo += 1
+            if tiempo % 10 == 0: print(f"Esperando ({tiempo}s)")
+
+        if descarga_completa and archivo_descargado:
+            ruta_origen = os.path.join(DOWNLOAD_DIR, archivo_descargado)
             
-        if descarga_completa and archivo_nuevo:
-            ruta_origen = os.path.join(DOWNLOAD_DIR, archivo_nuevo)
-            ruta_destino = os.path.join(DOWNLOAD_DIR, nombre_archivo_final)
+            fecha_hoy = time.strftime("%Y-%m-%d")
+            nombre_final = f"reporte_visitas_{fecha_hoy}.xls"
+            ruta_destino = os.path.join(DOWNLOAD_DIR, nombre_final)
             
             if os.path.exists(ruta_destino):
                 os.remove(ruta_destino)
-                
+            
             shutil.move(ruta_origen, ruta_destino)
-            tamano = os.path.getsize(ruta_destino)
-            print(f"ÉXITO: Archivo guardado: {ruta_destino}")
-            print(f"   Tamaño: {tamano} bytes")
+            
+            print(f"ÉXITO TOTAL: Archivo guardado en:")
+            print(f"-{ruta_destino}")
+            print(f"Tamaño: {os.path.getsize(ruta_destino)} bytes")
         else:
-            print("ERROR: El botón se clickeó, pero no apareció ningún archivo nuevo.")
+            print("ERROR: Se hizo clic pero no apareció el archivo en la carpeta.")
+            print(f"Contenido carpeta: {os.listdir(DOWNLOAD_DIR)}")
             
     else:
-        print("ERROR: Sigue sin encontrarse el botón Excel. Guardando captura de pantalla")
-        driver.save_screenshot("debug_error_excel.png")
+        print("ERROR: No se encontró el botón 'Excel'.")
+        driver.save_screenshot("debug_error_no_boton.png")
 
 except Exception as e:
     print(f"ERROR CRÍTICO: {e}")
@@ -151,4 +126,4 @@ except Exception as e:
 finally:
     if driver:
         driver.quit()
-        print("PROCESO FINALIZADO")
+        print("FINALIZADO")
