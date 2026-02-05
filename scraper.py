@@ -7,6 +7,8 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
 URL_INICIAL = "https://www.transparencia.gob.pe/reportes_directos/pte_transparencia_reg_visitas.aspx?id_entidad=11476&ver=&id_tema=500"
@@ -21,9 +23,7 @@ DOWNLOAD_DIR = os.path.join(CARPETA_RAIZ, fecha_hoy)
 
 if not os.path.exists(DOWNLOAD_DIR):
     os.makedirs(DOWNLOAD_DIR)
-    print(f"CARPETA CREADA: {DOWNLOAD_DIR}")
-else:
-    print(f"USANDO CARPETA: {DOWNLOAD_DIR}")
+    print(f"CARPETA LISTA: {DOWNLOAD_DIR}")
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
@@ -43,62 +43,58 @@ chrome_options.add_experimental_option("prefs", prefs)
 driver = None
 
 try:
-    print("1. Abriendo navegador")
+    print("1. Abriendo navegador...")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
+    wait = WebDriverWait(driver, 20)
     
-    print(f"2. Entrando al Portal de Transparencia: {URL_INICIAL}")
+    print(f"2. Cargando portal: {URL_INICIAL}")
     driver.get(URL_INICIAL)
     time.sleep(5)
 
     print("3. Buscando botón 'Ir a consultar'")
-    
-    xpath_boton_ir = "//a[contains(., 'Ir a consultar') or contains(@class, 'btn')]"
+    xpath_boton = "//a[contains(., 'Ir a consultar') or contains(@class, 'btn')]"
     
     try:
-        boton_ir = driver.find_element(By.XPATH, xpath_boton_ir)
+        boton_ir = wait.until(EC.presence_of_element_located((By.XPATH, xpath_boton)))
         
-        ventana_principal = driver.current_window_handle
         ventanas_antes = driver.window_handles
         
-        driver.execute_script("arguments[0].click();", boton_ir)
-        print("Clic en 'Ir a consultar' realizado")
+        print("Realizando SCROLL hacia el botón")
+        driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", boton_ir)
+        time.sleep(2)
         
-        time.sleep(3)
+        print("Ejecutando Clic")
+        driver.execute_script("arguments[0].click();", boton_ir)
+        
+        print("Esperando apertura de nueva pestaña")
+        wait.until(EC.number_of_windows_to_be(len(ventanas_antes) + 1))
         
         ventanas_nuevas = driver.window_handles
-        if len(ventanas_nuevas) > len(ventanas_antes):
-            driver.switch_to.window(ventanas_nuevas[-1])
-            print(f"Cambio de pestaña exitoso. URL actual: {driver.current_url}")
-        else:
-            print("No se detectó nueva pestaña, seguimos en la misma.")
+        driver.switch_to.window(ventanas_nuevas[-1])
+        print(f"ÉXITO Cambiado a nueva pestaña: {driver.current_url}")
 
     except Exception as e:
-        print(f"ERROR al intentar ir a consultar: {e}")
-        raise e
+        print(f"ERROR CRÍTICO al intentar entrar a la consulta: {e}")
+        raise e 
 
-    print("4. INICIANDO ESPERA DE 5 MINUTOS (Para carga de datos)")
-    time.sleep(300) 
-    print("5 Minutos completados")
+    print("4. INICIANDO ESPERA DE 5 MINUTOS (Carga de datos)")
+    time.sleep(300)
+    print(" Tiempo finalizado.")
 
     print("5. Buscando botón Excel")
     xpath_excel = "//button[contains(., 'Excel')]"
     
-    boton_excel = None
     try:
-        btns = driver.find_elements(By.XPATH, xpath_excel)
-        for btn in btns:
-            if btn.is_displayed():
-                boton_excel = btn
-                break
-    except:
-        pass
-
-    if boton_excel:
+        boton_excel = driver.find_element(By.XPATH, xpath_excel)
+        
         archivos_antes = set(os.listdir(DOWNLOAD_DIR))
         
+        driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", boton_excel)
+        time.sleep(1)
+        
         driver.execute_script("arguments[0].click();", boton_excel)
-        print("Clic en EXCEL ejecutado! Esperando descarga")
+        print("Clic en EXCEL realizado. Esperando archivo")
         
         tiempo = 0
         descarga_exitosa = False
@@ -123,20 +119,20 @@ try:
 
         if descarga_exitosa:
             ruta_final = os.path.join(DOWNLOAD_DIR, nombre_archivo)
-            print(f"ÉXITO TOTAL")
-            print(f"Archivo guardado en: {ruta_final}")
+            print(f"OPERACIÓN EXITOSA")
+            print(f"Archivo: {ruta_final}")
             print(f"Tamaño: {os.path.getsize(ruta_final)} bytes")
         else:
-            print("ERROR: Timeout. El archivo no apareció en la carpeta.")
-            print(f"Archivos en carpeta: {os.listdir(DOWNLOAD_DIR)}")
-    else:
-        print("ERROR: No se encontró el botón Excel tras la espera.")
+            print("ERROR: El botón se presionó pero no llegó el archivo.")
+            
+    except Exception as e:
+        print(f"ERROR: No se encontró el botón Excel (¿Quizás la página no cargó?). Detalles: {e}")
         driver.save_screenshot("debug_error_final.png")
 
 except Exception as e:
-    print(f"ERROR CRÍTICO: {e}")
+    print(f"ERROR DEL SISTEMA: {e}")
 
 finally:
     if driver:
         driver.quit()
-        print("PROCESO TERMINADO")
+        print("FIN")
