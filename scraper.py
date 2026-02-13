@@ -1,11 +1,11 @@
 import os
 import time
-import random
-import pandas as pd
+from datetime import datetime
+import pytz
 
 from selenium import webdriver
-from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
@@ -13,77 +13,95 @@ from selenium.webdriver.support import expected_conditions as EC
 URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
 
 
-def human_delay(a=1, b=3):
-    time.sleep(random.uniform(a, b))
-
-
 def main():
 
     print("Simulando usuario humano")
 
+
+    zona = pytz.timezone("America/Lima")
+    hoy = datetime.now(zona).strftime("%Y-%m-%d")
+
+    base = os.path.dirname(os.path.abspath(__file__))
+    carpeta = os.path.join(base, "data", hoy)
+
+    os.makedirs(carpeta, exist_ok=True)
+
+
     options = Options()
 
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
 
     options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_argument("--start-maximized")
+
+    prefs = {
+        "download.default_directory": carpeta,
+        "download.prompt_for_download": False,
+        "directory_upgrade": True,
+    }
+
+    options.add_experimental_option("prefs", prefs)
 
     driver = webdriver.Chrome(options=options)
-    wait = WebDriverWait(driver, 60)
+
+    wait = WebDriverWait(driver, 40)
 
     try:
 
         print("Abriendo portal")
         driver.get(URL)
 
-        human_delay(5, 7)
+        time.sleep(6)
 
-        driver.execute_script("window.scrollTo(0, 500)")
-        human_delay()
 
         print("Click Buscar")
+
         buscar = wait.until(
-            EC.element_to_be_clickable((By.ID, "btnBuscar"))
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Buscar')]"))
         )
-        buscar.click()
 
-        print("Esperando datos reales")
+        driver.execute_script("arguments[0].click();", buscar)
 
-        wait.until(lambda d: len(
-            d.find_elements(By.CSS_SELECTOR, "#tablaResultados tbody tr")
-        ) > 1)
+        print("Esperando datos")
 
-        human_delay()
+        wait.until(
+            EC.presence_of_element_located((By.XPATH, "//table//tbody/tr"))
+        )
 
-        print("Extrayendo tabla")
+        time.sleep(3)
 
-        rows = driver.find_elements(By.CSS_SELECTOR, "#tablaResultados tbody tr")
 
-        data = []
+        print("Descargando Excel")
 
-        for r in rows:
-            cols = [c.text.strip() for c in r.find_elements(By.TAG_NAME, "td")]
-            if cols:
-                data.append(cols)
+        excel = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Excel')]"))
+        )
 
-        if not data:
-            raise Exception("Bloqueo detectado — tabla vacía")
+        driver.execute_script("arguments[0].click();", excel)
 
-        headers = [
-            "Fecha Registro","Fecha Visita","Entidad","Visitante","Documento",
-            "Entidad Visitante","Funcionario","Hora Ingreso","Hora Salida",
-            "Motivo","Lugar","Observación"
-        ]
 
-        df = pd.DataFrame(data, columns=headers)
+        print("Esperando archivo")
 
-        os.makedirs("data", exist_ok=True)
+        tiempo = 0
 
-        filename = f"data/reporte_visitas_{time.strftime('%Y-%m-%d')}.xlsx"
-        df.to_excel(filename, index=False)
+        while tiempo < 60:
 
-        print("Excel guardado:", filename)
+            archivos = os.listdir(carpeta)
+
+            if any(a.endswith(".xlsx") for a in archivos):
+                print("Excel descargado correctamente")
+                break
+
+            time.sleep(1)
+            tiempo += 1
+
+        print("Proceso completado")
 
     finally:
+
         driver.quit()
 
 
