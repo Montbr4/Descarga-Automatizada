@@ -1,109 +1,74 @@
+import requests
+import pandas as pd
 import os
-import time
 from datetime import datetime
-import pytz
 
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
+print("INICIO")
 
+BASE_URL = "https://visitas.servicios.gob.pe/consultas/"
+API_URL = BASE_URL + "dataBusqueda.php"
 
-URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
+RUC = "20504743307"
 
 
-def main():
+session = requests.Session()
 
-    print("Simulando usuario humano")
+headers_page = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "text/html"
+}
 
+print("Obteniendo sesión inicial")
 
-    zona = pytz.timezone("America/Lima")
-    hoy = datetime.now(zona).strftime("%Y-%m-%d")
+session.get(
+    f"{BASE_URL}index.php?ruc_enti={RUC}",
+    headers=headers_page
+)
 
-    base = os.path.dirname(os.path.abspath(__file__))
-    carpeta = os.path.join(base, "data", hoy)
+payload = {
+    "draw": 1,
+    "columns[0][data]": "fecha_registro",
+    "columns[1][data]": "fecha_visita",
+    "start": 0,
+    "length": 1000,
+    "search[value]": "",
+    "ruc_enti": RUC
+}
 
-    os.makedirs(carpeta, exist_ok=True)
+headers_api = {
+    "User-Agent": "Mozilla/5.0",
+    "X-Requested-With": "XMLHttpRequest",
+    "Referer": f"{BASE_URL}index.php?ruc_enti={RUC}"
+}
 
+print("Consultando API")
 
-    options = Options()
+response = session.post(
+    API_URL,
+    data=payload,
+    headers=headers_api
+)
 
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--window-size=1920,1080")
+data = response.json()
 
-    options.add_argument("--disable-blink-features=AutomationControlled")
+rows = data.get("data", [])
 
-    prefs = {
-        "download.default_directory": carpeta,
-        "download.prompt_for_download": False,
-        "directory_upgrade": True,
-    }
+print(f"Filas obtenidas: {len(rows)}")
 
-    options.add_experimental_option("prefs", prefs)
+if not rows:
+    print("No se obtuvieron datos — posible bloqueo")
+    exit()
 
-    driver = webdriver.Chrome(options=options)
+df = pd.DataFrame(rows)
 
-    wait = WebDriverWait(driver, 40)
+fecha = datetime.now().strftime("%Y-%m-%d")
 
-    try:
+folder = f"data/{fecha}"
+os.makedirs(folder, exist_ok=True)
 
-        print("Abriendo portal")
-        driver.get(URL)
+archivo = f"{folder}/visitas.xlsx"
 
-        time.sleep(6)
+df.to_excel(archivo, index=False)
 
-
-        print("Click Buscar")
-
-        buscar = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Buscar')]"))
-        )
-
-        driver.execute_script("arguments[0].click();", buscar)
-
-        print("Esperando datos")
-
-        wait.until(
-            EC.presence_of_element_located((By.XPATH, "//table//tbody/tr"))
-        )
-
-        time.sleep(3)
-
-
-        print("Descargando Excel")
-
-        excel = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Excel')]"))
-        )
-
-        driver.execute_script("arguments[0].click();", excel)
-
-
-        print("Esperando archivo")
-
-        tiempo = 0
-
-        while tiempo < 60:
-
-            archivos = os.listdir(carpeta)
-
-            if any(a.endswith(".xlsx") for a in archivos):
-                print("Excel descargado correctamente")
-                break
-
-            time.sleep(1)
-            tiempo += 1
-
-        print("Proceso completado")
-
-    finally:
-
-        driver.quit()
-
-
-if __name__ == "__main__":
-    main()
+print("Excel guardado en:", archivo)
+print("FIN")
