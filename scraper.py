@@ -1,60 +1,91 @@
-import asyncio
-from playwright.async_api import async_playwright
 import os
-from datetime import datetime
-import pytz
+import time
+import random
+import pandas as pd
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
 
 URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
 
-async def main():
 
-    print("\nINICIO SCRAPER")
+def human_delay(a=1, b=3):
+    time.sleep(random.uniform(a, b))
 
-    zona = pytz.timezone("America/Lima")
-    fecha = datetime.now(zona).strftime("%Y-%m-%d")
 
-    base_dir = os.getcwd()
-    carpeta = os.path.join(base_dir, "data")
+def main():
 
-    print("Directorio actual:", base_dir)
-    print("Creando carpeta:", carpeta)
+    print("Simulando usuario humano")
 
-    os.makedirs(carpeta, exist_ok=True)
+    options = Options()
 
-    nombre = f"reporte_visitas_{fecha}.xlsx"
-    ruta = os.path.join(carpeta, nombre)
 
-    async with async_playwright() as p:
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--start-maximized")
 
-        browser = await p.chromium.launch(headless=True)
-        context = await browser.new_context(accept_downloads=True)
-        page = await context.new_page()
+    driver = webdriver.Chrome(options=options)
+    wait = WebDriverWait(driver, 60)
+
+    try:
 
         print("Abriendo portal")
-        await page.goto(URL, timeout=120000)
+        driver.get(URL)
 
-        print("Click buscar")
-        await page.click("text=Buscar")
+        human_delay(5, 7)
 
-        print("Esperando datos")
-        await page.wait_for_selector("text=Mostrando", timeout=60000)
+        driver.execute_script("window.scrollTo(0, 500)")
+        human_delay()
 
-        print("Descargando Excel")
+        print("Click Buscar")
+        buscar = wait.until(
+            EC.element_to_be_clickable((By.ID, "btnBuscar"))
+        )
+        buscar.click()
 
-        async with page.expect_download() as download_info:
-            await page.click("text=Excel")
+        print("Esperando datos reales")
 
-        download = await download_info.value
-        await download.save_as(ruta)
+        wait.until(lambda d: len(
+            d.find_elements(By.CSS_SELECTOR, "#tablaResultados tbody tr")
+        ) > 1)
 
-        print("\nARCHIVO GUARDADO:")
-        print(ruta)
+        human_delay()
 
-        await browser.close()
+        print("Extrayendo tabla")
 
-    print("\nContenido de /data:")
-    print(os.listdir(carpeta))
+        rows = driver.find_elements(By.CSS_SELECTOR, "#tablaResultados tbody tr")
 
-    print("\nFIN")
+        data = []
 
-asyncio.run(main())
+        for r in rows:
+            cols = [c.text.strip() for c in r.find_elements(By.TAG_NAME, "td")]
+            if cols:
+                data.append(cols)
+
+        if not data:
+            raise Exception("Bloqueo detectado — tabla vacía")
+
+        headers = [
+            "Fecha Registro","Fecha Visita","Entidad","Visitante","Documento",
+            "Entidad Visitante","Funcionario","Hora Ingreso","Hora Salida",
+            "Motivo","Lugar","Observación"
+        ]
+
+        df = pd.DataFrame(data, columns=headers)
+
+        os.makedirs("data", exist_ok=True)
+
+        filename = f"data/reporte_visitas_{time.strftime('%Y-%m-%d')}.xlsx"
+        df.to_excel(filename, index=False)
+
+        print("Excel guardado:", filename)
+
+    finally:
+        driver.quit()
+
+
+if __name__ == "__main__":
+    main()
