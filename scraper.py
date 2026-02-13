@@ -10,12 +10,15 @@ DOWNLOAD_DIR = os.getcwd()
 
 def main():
 
-    print("Iniciando navegador stealth")
+    print("Iniciando")
 
     options = uc.ChromeOptions()
+
+    options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
 
     prefs = {
         "download.default_directory": DOWNLOAD_DIR,
@@ -25,7 +28,7 @@ def main():
     options.add_experimental_option("prefs", prefs)
 
     driver = uc.Chrome(options=options)
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 40)
 
     try:
 
