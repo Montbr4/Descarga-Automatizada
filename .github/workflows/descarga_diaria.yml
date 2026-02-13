@@ -1,39 +1,41 @@
-name: Descarga automatizada visitas
+name: Descarga Automatizada Diario
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  scrape:
+  descargar:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v4
 
-    - name: Checkout repo
-      uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-    - name: Install Chrome
-      run: |
-        sudo apt update
-        sudo apt install -y google-chrome-stable
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Ejecutar scraper
+        run: python scraper.py
 
-    - name: Install dependencies
-      run: |
-        pip install selenium
-        pip install undetected-chromedriver
+      - name: Guardar cambios
+        run: |
+          git config --global user.name "Bot"
+          git config --global user.email "bot@github.com"
 
-    - name: Run scraper
-      run: python scraper.py
+          git add data/
 
-    - name: Upload Excel
-      uses: actions/upload-artifact@v4
-      with:
-        name: reporte-visitas
-        path: "*.xlsx"
+          if git diff --staged --quiet; then
+            echo "Sin cambios"
+          else
+            git commit -m "Reporte $(date +'%Y-%m-%d')"
+            git pull --rebase origin main
+            git push
+          fi
