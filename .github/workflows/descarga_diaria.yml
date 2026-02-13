@@ -1,41 +1,32 @@
-name: Descarga Automatizada Diario
+name: Descargar visitas
 
 on:
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '0 20 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  descargar:
+  run:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v4
+      - name: Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Instalar dependencias
-        run: pip install -r requirements.txt
+        run: |
+          pip install -r requirements.txt
+          playwright install
 
       - name: Ejecutar scraper
         run: python scraper.py
 
-      - name: Guardar cambios
-        run: |
-          git config --global user.name "Bot"
-          git config --global user.email "bot@github.com"
-
-          git add data/
-
-          if git diff --staged --quiet; then
-            echo "Sin cambios"
-          else
-            git commit -m "Reporte $(date +'%Y-%m-%d')"
-            git pull --rebase origin main
-            git push
-          fi
+      - name: Subir Excel
+        uses: actions/upload-artifact@v4
+        with:
+          name: reporte-visitas
+          path: "*.xlsx"
