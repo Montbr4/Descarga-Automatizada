@@ -50,26 +50,27 @@ driver.execute_cdp_cmd(
 wait = WebDriverWait(driver, 60)
 
 try:
+
     print("Abriendo portal")
     driver.get(URL)
 
     print("Esperando datos reales en la tabla")
 
-wait.until(lambda d: d.execute_script("""
-    let table = document.querySelector('table.dataTable');
-    if (!table) return false;
+    wait.until(lambda d: d.execute_script("""
+        let table = document.querySelector('table.dataTable');
+        if (!table) return false;
 
-    let rows = table.querySelectorAll('tbody tr');
-    return rows.length > 0;
-"""))
+        let rows = table.querySelectorAll('tbody tr');
+        return rows.length > 0;
+    """))
 
-rows = driver.execute_script("""
-    return document.querySelectorAll(
-        'table.dataTable tbody tr'
-    ).length;
-""")
+    rows = driver.execute_script("""
+        return document.querySelectorAll(
+            'table.dataTable tbody tr'
+        ).length;
+    """)
 
-print(f"Filas detectadas: {rows}")
+    print(f"Filas detectadas: {rows}")
 
     print("Esperando botón Excel")
 
@@ -77,49 +78,50 @@ print(f"Filas detectadas: {rows}")
         By.CSS_SELECTOR, "button.buttons-excel"
     )))
 
-    archivos_antes = set(os.listdir(DOWNLOAD_DIR))
+    before = set(os.listdir(DOWNLOAD_DIR))
 
     print("Descargando Excel")
     driver.execute_script("arguments[0].click();", excel_btn)
 
     timeout = 120
     start = time.time()
-    descargado = None
+    downloaded = None
 
     while time.time() - start < timeout:
-        archivos = set(os.listdir(DOWNLOAD_DIR))
-        nuevos = archivos - archivos_antes
+        files = set(os.listdir(DOWNLOAD_DIR))
+        diff = files - before
 
-        for f in nuevos:
+        for f in diff:
             if not f.endswith(".crdownload"):
-                descargado = f
+                downloaded = f
                 break
 
-        if descargado:
+        if downloaded:
             break
 
         time.sleep(1)
 
-    if not descargado:
-        raise Exception("Tiempo agotado — descarga no detectada")
+    if not downloaded:
+        raise Exception("Descarga no detectada")
 
-    origen = os.path.join(DOWNLOAD_DIR, descargado)
+    src = os.path.join(DOWNLOAD_DIR, downloaded)
 
     if os.path.exists(FINAL_FILE):
         os.remove(FINAL_FILE)
 
-    shutil.move(origen, FINAL_FILE)
+    shutil.move(src, FINAL_FILE)
 
     print("DESCARGA EXITOSA")
     print("Archivo:", FINAL_FILE)
-    print("Tamaño:", os.path.getsize(FINAL_FILE), "bytes")
 
 except Exception as e:
+
     print("ERROR:", e)
     driver.save_screenshot(
         os.path.join(DOWNLOAD_DIR, "debug_error.png")
     )
 
 finally:
+
     driver.quit()
-    print("Fin")
+    print("Fin del proceso")
