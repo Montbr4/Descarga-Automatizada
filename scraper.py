@@ -53,11 +53,23 @@ try:
     print("Abriendo portal")
     driver.get(URL)
 
-    print("Esperando DataTables")
+    print("Esperando datos reales en la tabla")
 
-    wait.until(EC.presence_of_element_located((
-        By.CSS_SELECTOR, "table.dataTable"
-    )))
+wait.until(lambda d: d.execute_script("""
+    let table = document.querySelector('table.dataTable');
+    if (!table) return false;
+
+    let rows = table.querySelectorAll('tbody tr');
+    return rows.length > 0;
+"""))
+
+rows = driver.execute_script("""
+    return document.querySelectorAll(
+        'table.dataTable tbody tr'
+    ).length;
+""")
+
+print(f"Filas detectadas: {rows}")
 
     print("Esperando botón Excel")
 
@@ -67,7 +79,7 @@ try:
 
     archivos_antes = set(os.listdir(DOWNLOAD_DIR))
 
-    print("⬇ Descargando Excel")
+    print("Descargando Excel")
     driver.execute_script("arguments[0].click();", excel_btn)
 
     timeout = 120
