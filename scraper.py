@@ -1,7 +1,7 @@
 import os
 import time
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 from selenium import webdriver
@@ -14,22 +14,26 @@ from selenium.webdriver.support import expected_conditions as EC
 URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
 
 zona = pytz.timezone("America/Lima")
-fecha = datetime.now(zona).strftime("%Y-%m-%d")
+hoy = datetime.now(zona)
+ayer = hoy - timedelta(days=1)
+
+fecha_inicio = ayer.strftime("%d/%m/%Y")
+fecha_fin = hoy.strftime("%d/%m/%Y")
+fecha_folder = hoy.strftime("%Y-%m-%d")
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-DOWNLOAD_DIR = os.path.join(BASE, "data", fecha)
+DOWNLOAD_DIR = os.path.join(BASE, "data", fecha_folder)
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 FINAL_FILE = os.path.join(
     DOWNLOAD_DIR,
-    f"reporte_visitas_{fecha}.xlsx"
+    f"reporte_visitas_{fecha_folder}.xlsx"
 )
 
 print("Carpeta:", DOWNLOAD_DIR)
 
 opts = Options()
 opts.binary_location = "/usr/bin/google-chrome"
-
 opts.add_argument("--headless=new")
 opts.add_argument("--no-sandbox")
 opts.add_argument("--disable-dev-shm-usage")
@@ -48,35 +52,49 @@ driver.execute_cdp_cmd(
     {"behavior": "allow", "downloadPath": DOWNLOAD_DIR}
 )
 
-wait = WebDriverWait(driver, 90)
+wait = WebDriverWait(driver, 60)
 
 try:
 
     print("Abriendo portal")
     driver.get(URL)
 
-    print("Esperando carga AJAX real de DataTables")
+    print("Configurando rango de fechas")
+
+    fecha_input = wait.until(EC.presence_of_element_located((
+        By.CSS_SELECTOR, "input[name='daterange']"
+    )))
+
+    driver.execute_script("arguments[0].value='';", fecha_input)
+    fecha_input.send_keys(f"{fecha_inicio} - {fecha_fin}")
+
+    print("Ejecutando búsqueda")
+
+    buscar_btn = driver.find_element(
+        By.XPATH, "//button[contains(.,'Buscar')]"
+    )
+    buscar_btn.click()
+
+    time.sleep(5)
+
+    print("Esperando datos")
 
     wait.until(lambda d: d.execute_script("""
         if (!window.jQuery || !$.fn.dataTable) return false;
-
-        let tables = $.fn.dataTable.tables();
-        if (!tables.length) return false;
-
-        let api = $(tables[0]).DataTable();
-        return api.data().length > 0;
+        let api = $( $.fn.dataTable.tables()[0] ).DataTable();
+        return api.data().length >= 0;
     """))
 
-    rows = driver.execute_script("""
-        let tables = $.fn.dataTable.tables();
-        let api = $(tables[0]).DataTable();
+    registros = driver.execute_script("""
+        let api = $( $.fn.dataTable.tables()[0] ).DataTable();
         return api.data().length;
     """)
 
-    print(f"DataTables cargó {rows} registros")
+    print(f"Registros encontrados: {registros}")
 
-    print("Buscando botón Excel")
-
+    if registros == 0:
+        raise Exception("No hay registros para exportar")
+        
     excel_btn = wait.until(EC.element_to_be_clickable((
         By.CSS_SELECTOR, "button.buttons-excel"
     )))
@@ -107,21 +125,16 @@ try:
     if not downloaded:
         raise Exception("Descarga no detectada")
 
-    src = os.path.join(DOWNLOAD_DIR, downloaded)
-
-    if os.path.exists(FINAL_FILE):
-        os.remove(FINAL_FILE)
-
-    shutil.move(src, FINAL_FILE)
+    shutil.move(
+        os.path.join(DOWNLOAD_DIR, downloaded),
+        FINAL_FILE
+    )
 
     print("DESCARGA EXITOSA")
-    print("Archivo:", FINAL_FILE)
-    print("Tamaño:", os.path.getsize(FINAL_FILE), "bytes")
 
 except Exception as e:
 
     print("ERROR:", e)
-
     driver.save_screenshot(
         os.path.join(DOWNLOAD_DIR, "debug_error.png")
     )
@@ -129,4 +142,4 @@ except Exception as e:
 finally:
 
     driver.quit()
-    print("Fin")
+    print("Fin del proceso")
