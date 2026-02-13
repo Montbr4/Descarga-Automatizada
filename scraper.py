@@ -1,6 +1,5 @@
 import os
 import time
-import shutil
 from datetime import datetime
 import pytz
 
@@ -21,10 +20,9 @@ BASE = os.getcwd()
 DOWNLOAD = os.path.join(BASE, "data", fecha)
 os.makedirs(DOWNLOAD, exist_ok=True)
 
-print("Iniciando")
+print("INICIO SCRAPER")
 
 options = Options()
-
 options.add_argument("--headless=new")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
@@ -35,7 +33,6 @@ prefs = {
     "download.default_directory": DOWNLOAD,
     "download.prompt_for_download": False,
 }
-
 options.add_experimental_option("prefs", prefs)
 
 driver = webdriver.Chrome(
@@ -43,58 +40,102 @@ driver = webdriver.Chrome(
     options=options
 )
 
-wait = WebDriverWait(driver, 40)
+wait = WebDriverWait(driver, 60)
 
 try:
 
     print("Abriendo portal")
     driver.get(URL)
 
-    print("Click Buscar")
-    btn = wait.until(EC.element_to_be_clickable(
+    print("Esperando botón Buscar")
+    buscar = wait.until(EC.element_to_be_clickable(
         (By.XPATH, "//button[contains(.,'Buscar')]")
     ))
 
     time.sleep(2)
-    btn.click()
+    buscar.click()
 
     print("Esperando datos reales")
 
-    wait.until(lambda d: d.execute_script("""
-        let table = document.querySelector("table.dataTable");
-        if (!table) return false;
+    datos_ok = False
 
-        let rows = table.querySelectorAll("tbody tr");
-        if (rows.length === 0) return false;
+    for intento in range(4):
 
-        return !rows[0].innerText.includes("No hay datos");
-    """))
+        print(f"   Intento {intento+1}")
 
-    print("Datos cargados")
+        try:
+
+            wait.until(lambda d: d.execute_script("""
+                let table = document.querySelector("table.dataTable");
+                if (!table) return false;
+
+                let txt = table.innerText;
+
+                if (txt.includes("Cargando")) return false;
+                if (txt.includes("No hay datos")) return false;
+
+                let rows = table.querySelectorAll("tbody tr");
+                return rows.length > 0;
+            """))
+
+            datos_ok = True
+            print("Datos detectados")
+            break
+
+        except:
+            print("Datos no listos — recargando")
+            driver.refresh()
+            time.sleep(5)
+
+            buscar = wait.until(EC.element_to_be_clickable(
+                (By.XPATH, "//button[contains(.,'Buscar')]")
+            ))
+            buscar.click()
+
+    if not datos_ok:
+        raise Exception("La tabla nunca cargó datos reales")
+
+    print("Descargando Excel")
 
     excel = wait.until(EC.element_to_be_clickable(
         (By.XPATH, "//button[contains(.,'Excel')]")
     ))
 
-    print("Descargando Excel")
-    before = set(os.listdir(DOWNLOAD))
+    archivos_antes = set(os.listdir(DOWNLOAD))
     excel.click()
 
     timeout = 60
-    while timeout > 0:
-        after = set(os.listdir(DOWNLOAD))
-        new = after - before
+    descargado = False
 
-        if new:
-            file = list(new)[0]
-            if not file.endswith(".crdownload"):
-                print("Descarga completa:", file)
+    while timeout > 0:
+
+        archivos = set(os.listdir(DOWNLOAD))
+        nuevos = archivos - archivos_antes
+
+        for f in nuevos:
+            if not f.endswith(".crdownload"):
+                print("Archivo descargado:", f)
+                descargado = True
                 break
+
+        if descargado:
+            break
 
         time.sleep(1)
         timeout -= 1
 
-    print("Fin")
+    if not descargado:
+        raise Exception("No se detectó descarga")
+
+    print("SCRAPER COMPLETADO")
+
+except Exception as e:
+
+    print("\n ERROR:", e)
+    driver.save_screenshot(os.path.join(DOWNLOAD, "debug_error.png"))
+    print("Screenshot guardado")
 
 finally:
+
     driver.quit()
+    print("FIN")
