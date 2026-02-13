@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
-URL_INICIAL = "https://www.transparencia.gob.pe/reportes_directos/pte_transparencia_reg_visitas.aspx?id_entidad=11476&ver=&id_tema=500"
+URL_DIRECTA = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CARPETA_RAIZ = os.path.join(BASE_DIR, "data")
@@ -44,86 +44,79 @@ chrome_options.add_experimental_option("prefs", prefs)
 driver = None
 
 try:
-    print("1. Abriendo navegador")
+    print("1. Iniciando navegador")
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     
-    print("Forzando Zona Horaria: America/Lima")
+    print("   -> Configurando zona horaria: America/Lima")
     driver.execute_cdp_cmd("Emulation.setTimezoneOverride", {"timezoneId": "America/Lima"})
 
-    wait = WebDriverWait(driver, 30)
+    wait = WebDriverWait(driver, 20)
     
-    print(f"2. Cargando portal Transparencia: {URL_INICIAL}")
-    driver.get(URL_INICIAL)
+    print(f"2. Entrando directo a: {URL_DIRECTA}")
+    driver.get(URL_DIRECTA)
     time.sleep(5)
 
-    print("3. Buscando botón 'Ir a consultar'")
-    xpath_boton = "//a[contains(., 'Ir a consultar') or contains(@class, 'btn')]"
+    print("3. Verificando estado de la tabla")
     
-    try:
-        boton_ir = wait.until(EC.presence_of_element_located((By.XPATH, xpath_boton)))
-        driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", boton_ir)
-        time.sleep(2)
-        
-        driver.execute_script("arguments[0].setAttribute('target', '_self');", boton_ir)
-        driver.execute_script("arguments[0].click();", boton_ir)
-        
-        print("   -> Navegando a Visitas (Misma pestaña)...")
-        time.sleep(10)
-        
-    except Exception as e:
-        print(f"   -> Error navegando: {e}")
-
-    print("4. Analizando si la tabla tiene datos")
+    page_source = driver.page_source
+    tabla_vacia = "0 to 0 of 0 Registros" in page_source or "No hay datos disponibles" in page_source
     
-    try:
-        cuerpo_pagina = driver.page_source
-        if "No hay datos disponibles" in cuerpo_pagina or "0 to 0 of 0 Registros" in cuerpo_pagina:
-            print("DETECTADO: La tabla está vacía (0 registros).")
-            print("ACCIÓN: Forzando clic en 'Buscar' para cargar datos")
-            
-            btn_buscar = driver.find_element(By.XPATH, "//button[contains(translate(., 'BUSCAR', 'buscar'), 'buscar')]")
+    if tabla_vacia:
+        print("La tabla cargó vacía.")
+        print("Presionando botón 'BUSCAR' para recargar datos")
+        
+        try:
+            btn_buscar = driver.find_element(By.XPATH, "//button[contains(., 'Buscar') or contains(., 'BUSCAR')]")
             driver.execute_script("arguments[0].click();", btn_buscar)
-            print("Botón BUSCAR presionado. Esperando recarga")
-            time.sleep(5)
-        else:
-            print("La tabla PARECE tener datos. No tocaré el botón Buscar.")
+            print("Botón 'Buscar' presionado correctamente.")
+        except Exception as e:
+            print(f"No se pudo clickear Buscar: {e}")
             
-    except Exception as e:
-        print(f"No pude verificar la tabla, asumo que cargará sola: {e}")
+        print("Esperando 10 segundos para recarga de tabla")
+        time.sleep(10)
+    else:
+        print("La tabla ya tiene datos visibles. Continuamos.")
 
-    print("5. INICIANDO ESPERA DE 5 MINUTOS (Carga total)")
-    time.sleep(300)
-    print("   -> Tiempo finalizado.")
+    print("4. Esperando 1 minuto de seguridad para carga total.")
+    time.sleep(60)
 
-    screenshot_file = os.path.join(DOWNLOAD_DIR, "evidencia_antes_descarga.png")
-    driver.save_screenshot(screenshot_file)
-    print(f"   -> Foto de evidencia guardada: {screenshot_file}")
-
-    print("6. Buscando botón Excel")
-    xpath_excel = "//button[contains(., 'Excel')]"
+    print("5. Buscando botón Excel")
+    xpaths_excel = [
+        "//button[contains(@class, 'buttons-excel')]", 
+        "//button[contains(., 'Excel')]",
+        "//span[contains(., 'Excel')]/parent::button"
+    ]
     
-    try:
-        boton_excel = driver.find_element(By.XPATH, xpath_excel)
+    boton_excel = None
+    for xpath in xpaths_excel:
+        try:
+            btn = driver.find_element(By.XPATH, xpath)
+            if btn.is_displayed():
+                boton_excel = btn
+                break
+        except:
+            continue
+            
+    if boton_excel:
+        archivos_antes = set(os.listdir(DOWNLOAD_DIR))
         
         driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", boton_excel)
         time.sleep(1)
-        
-        archivos_antes = set(os.listdir(DOWNLOAD_DIR))
-        
         driver.execute_script("arguments[0].click();", boton_excel)
-        print("Clic realizado. Esperando archivo")
+        
+        print("Clic en Excel realizado. Esperando descarga")
         
         tiempo = 0
         descarga_exitosa = False
         nombre_archivo = ""
         
-        while tiempo < 120:
+        while tiempo < 60:
             archivos_ahora = set(os.listdir(DOWNLOAD_DIR))
             nuevos = archivos_ahora - archivos_antes
             
             for f in nuevos:
-                if not f.endswith(".crdownload") and not f.endswith(".tmp") and "evidencia" not in f:
+                if not f.endswith(".crdownload") and not f.endswith(".tmp"):
                     nombre_archivo = f
                     descarga_exitosa = True
                     break
@@ -134,21 +127,23 @@ try:
             time.sleep(1)
             tiempo += 1
             if tiempo % 10 == 0: print(f"Descargando ({tiempo}s)")
-
+            
         if descarga_exitosa:
             ruta_final = os.path.join(DOWNLOAD_DIR, nombre_archivo)
-            size = os.path.getsize(ruta_final)
+            tamano = os.path.getsize(ruta_final)
             print(f"ÉXITO")
             print(f"Archivo guardado: {ruta_final}")
-            print(f"Tamaño: {size} bytes")
+            print(f"Tamaño: {tamano} bytes")
             
-            if size < 1000:
-                print("Posible Falla")
+            if tamano < 1000:
+                print("El archivo es pequeño (posible tabla vacía).")
+                driver.save_screenshot(os.path.join(DOWNLOAD_DIR, "debug_error_vacio.png"))
         else:
-            print("ERROR: No se descargó nada (Timeout).")
+            print("ERROR: Tiempo agotado, no se descargó el archivo.")
             
-    except Exception as e:
-        print(f"ERROR buscando Excel: {e}")
+    else:
+        print("ERROR: No se encontró el botón Excel en la página.")
+        driver.save_screenshot(os.path.join(DOWNLOAD_DIR, "debug_no_boton.png"))
 
 except Exception as e:
     print(f"ERROR CRÍTICO: {e}")
@@ -156,4 +151,4 @@ except Exception as e:
 finally:
     if driver:
         driver.quit()
-        print("FIN")
+        print("--- FIN DEL PROCESO ---")
