@@ -2,7 +2,7 @@ name: Descarga Automatizada Diario
 
 on:
   schedule:
-    - cron: '30 4 * * *'
+    - cron: '0 1 * * *'
   workflow_dispatch: 
 
 permissions:
@@ -22,13 +22,13 @@ jobs:
           python-version: '3.9'
           
       - name: Instalar librerías
-        run: pip install -r requirements.txt
+        run: pip install selenium webdriver-manager pytz
         
       - name: Correr script
         run: python scraper.py
       
       - name: Verificar archivos
-        run: ls -lh data/
+        run: ls -R data/
         
       - name: Guardar cambios
         run: |
@@ -40,7 +40,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No hay cambios para guardar."
           else
-            git commit -m "Reporte Excel: $(date +'%Y-%m-%d') [skip ci]"
+            git commit -m "Reporte Diario: $(date +'%Y-%m-%d') [skip ci]"
             git pull --rebase origin main
             git push
           fi
