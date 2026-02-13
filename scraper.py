@@ -1,51 +1,60 @@
 import requests
 import pandas as pd
-import os
 from datetime import datetime
 import pytz
+import time
 
-print("\nDESCARGA DIRECTA API")
+print("DESCARGA API CON SESIÓN REAL")
 
-zona = pytz.timezone("America/Lima")
-fecha = datetime.now(zona).strftime("%Y-%m-%d")
+ruc = "20504743307"
 
-BASE = os.getcwd()
-DOWNLOAD = os.path.join(BASE, "data", fecha)
-os.makedirs(DOWNLOAD, exist_ok=True)
-
-archivo = os.path.join(DOWNLOAD, f"visitas_{fecha}.xlsx")
-
-url = "https://visitas.servicios.gob.pe/consultas/listar"
-
-params = {
-    "ruc_enti": "20504743307",
-    "length": "10000",
-    "start": "0"
-}
+url = "https://visitas.servicios.gob.pe/consultas/index.php"
 
 headers = {
-    "User-Agent": "Mozilla/5.0",
-    "Accept": "application/json"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Referer": f"https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti={ruc}",
+    "X-Requested-With": "XMLHttpRequest",
+    "Connection": "keep-alive"
 }
 
-print("Consultando API")
+params = {
+    "ruc_enti": ruc
+}
 
-r = requests.get(url, params=params, headers=headers)
+session = requests.Session()
 
-if r.status_code != 200:
-    raise Exception("API no respondió")
+print("Abriendo sesión…")
 
-data = r.json()
+session.get(headers["Referer"], headers=headers, timeout=30)
 
-rows = data.get("data", [])
+time.sleep(2)
 
-if not rows:
-    raise Exception("API devolvió tabla vacía")
+print("Consultando datos")
 
-print(f"Registros obtenidos: {len(rows)}")
+response = session.get(url, headers=headers, params=params, timeout=60)
 
-df = pd.DataFrame(rows)
+if response.status_code != 200:
+    raise Exception(f"Error HTTP {response.status_code}")
+
+try:
+    data = response.json()
+except:
+    raise Exception("Respuesta no es JSON — posible bloqueo")
+
+if not data:
+    raise Exception("API respondió vacío")
+
+print("Registros recibidos:", len(data))
+
+df = pd.DataFrame(data)
+
+tz = pytz.timezone("America/Lima")
+fecha = datetime.now(tz).strftime("%Y-%m-%d")
+
+archivo = f"reporte_visitas_{fecha}.xlsx"
+
 df.to_excel(archivo, index=False)
 
-print("Archivo guardado:", archivo)
-print("DESCARGA COMPLETA\n")
+print("ARCHIVO GUARDADO:", archivo)
+print("DESCARGA EXITOSA")
