@@ -2,18 +2,30 @@ import asyncio
 from playwright.async_api import async_playwright
 import os
 from datetime import datetime
+import pytz
 
 URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
 
 async def main():
-    print("Iniciando")
+
+    print("Iniciando navegador")
+
+    zona = pytz.timezone("America/Lima")
+    fecha = datetime.now(zona).strftime("%Y-%m-%d")
+
+    carpeta = "data"
+    os.makedirs(carpeta, exist_ok=True)
+
+    nombre = f"reporte_visitas_{fecha}.xlsx"
+    ruta = os.path.join(carpeta, nombre)
 
     async with async_playwright() as p:
+
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
 
-        print("Abriendo portal...")
+        print("Abriendo portal")
         await page.goto(URL, timeout=120000)
 
         print("Click buscar")
@@ -28,13 +40,9 @@ async def main():
             await page.click("text=Excel")
 
         download = await download_info.value
+        await download.save_as(ruta)
 
-        fecha = datetime.now().strftime("%Y-%m-%d")
-        nombre = f"reporte_visitas_{fecha}.xlsx"
-
-        await download.save_as(nombre)
-
-        print("Descarga completada:", nombre)
+        print("Archivo guardado en:", ruta)
 
         await browser.close()
 
