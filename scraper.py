@@ -1,62 +1,41 @@
-import requests
-import pandas as pd
+import asyncio
+from playwright.async_api import async_playwright
+import os
 from datetime import datetime
-import pytz
-import time
-import json
 
-print("DESCARGA API CON SESIÓN REAL")
+URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
 
-ruc = "20504743307"
+async def main():
+    print("Iniciando")
 
-url = "https://visitas.servicios.gob.pe/consultas/index.php"
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(accept_downloads=True)
+        page = await context.new_page()
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; Win64; x64)",
-    "Accept": "application/json, text/javascript, */*; q=0.01",
-    "Referer": f"https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti={ruc}",
-    "X-Requested-With": "XMLHttpRequest"
-}
+        print("Abriendo portal...")
+        await page.goto(URL, timeout=120000)
 
-params = {
-    "ruc_enti": ruc
-}
+        print("Click buscar")
+        await page.click("text=Buscar")
 
-session = requests.Session()
+        print("Esperando datos")
+        await page.wait_for_selector("text=Mostrando", timeout=60000)
 
-print("Abriendo sesión")
+        print("Descargando Excel")
 
-session.get(headers["Referer"], headers=headers, timeout=30)
+        async with page.expect_download() as download_info:
+            await page.click("text=Excel")
 
-time.sleep(2)
+        download = await download_info.value
 
-print("Consultando datos")
+        fecha = datetime.now().strftime("%Y-%m-%d")
+        nombre = f"reporte_visitas_{fecha}.xlsx"
 
-response = session.get(url, headers=headers, params=params, timeout=60)
+        await download.save_as(nombre)
 
-if response.status_code != 200:
-    raise Exception(f"Error HTTP {response.status_code}")
+        print("Descarga completada:", nombre)
 
-try:
-    data = json.loads(response.content.decode("utf-8-sig"))
-except Exception as e:
-    print("Respuesta cruda:")
-    print(response.text[:500])
-    raise Exception("No se pudo parsear JSON")
+        await browser.close()
 
-if not data:
-    raise Exception("API respondió vacío")
-
-print("Registros recibidos:", len(data))
-
-df = pd.DataFrame(data)
-
-tz = pytz.timezone("America/Lima")
-fecha = datetime.now(tz).strftime("%Y-%m-%d")
-
-archivo = f"reporte_visitas_{fecha}.xlsx"
-
-df.to_excel(archivo, index=False)
-
-print("ARCHIVO GUARDADO:", archivo)
-print("DESCARGA EXITOSA")
+asyncio.run(main())
