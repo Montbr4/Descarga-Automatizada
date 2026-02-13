@@ -1,18 +1,19 @@
-name: Descargar visitas
+name: Descarga diaria visitas
 
 on:
   schedule:
-    - cron: '0 20 * * *'
+    - cron: '0 1 * * *'
   workflow_dispatch:
 
 jobs:
-  run:
+  descargar:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Clonar repo
+        uses: actions/checkout@v4
 
-      - name: Python
+      - name: Instalar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -29,4 +30,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: reporte-visitas
-          path: "data/*.xlsx"
+          path: data/
