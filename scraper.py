@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import pytz
 import time
+import json
 
 print("DESCARGA API CON SESIÓN REAL")
 
@@ -11,11 +12,10 @@ ruc = "20504743307"
 url = "https://visitas.servicios.gob.pe/consultas/index.php"
 
 headers = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; Win64; x64)",
     "Accept": "application/json, text/javascript, */*; q=0.01",
     "Referer": f"https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti={ruc}",
-    "X-Requested-With": "XMLHttpRequest",
-    "Connection": "keep-alive"
+    "X-Requested-With": "XMLHttpRequest"
 }
 
 params = {
@@ -24,7 +24,7 @@ params = {
 
 session = requests.Session()
 
-print("Abriendo sesión…")
+print("Abriendo sesión")
 
 session.get(headers["Referer"], headers=headers, timeout=30)
 
@@ -38,9 +38,11 @@ if response.status_code != 200:
     raise Exception(f"Error HTTP {response.status_code}")
 
 try:
-    data = response.json()
-except:
-    raise Exception("Respuesta no es JSON — posible bloqueo")
+    data = json.loads(response.content.decode("utf-8-sig"))
+except Exception as e:
+    print("Respuesta cruda:")
+    print(response.text[:500])
+    raise Exception("No se pudo parsear JSON")
 
 if not data:
     raise Exception("API respondió vacío")
