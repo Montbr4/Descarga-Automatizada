@@ -3,44 +3,49 @@ name: Descarga Automatizada Diario
 on:
   schedule:
     - cron: '0 1 * * *'
-  workflow_dispatch: 
+  workflow_dispatch:
 
 permissions:
-  contents: write 
+  contents: write
 
 jobs:
   descargar:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Descargar repositorio
-        uses: actions/checkout@v4
-      
+      - uses: actions/checkout@v4
+
       - name: Instalar Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-          
-      - name: Instalar librerías
-        run: pip install selenium webdriver-manager pytz
-        
-      - name: Correr script
-        run: python scraper.py
-      
-      - name: Verificar archivos
-        run: ls -R data/
-        
-      - name: Guardar cambios
+          python-version: "3.11"
+
+      - name: Instalar Chrome
         run: |
-          git config --global user.name "Bot de Datos"
+          sudo apt update
+          sudo apt install -y chromium-browser chromium-chromedriver
+          sudo ln -s /usr/bin/chromium-browser /usr/bin/google-chrome
+
+      - name: Instalar dependencias
+        run: pip install selenium pytz
+
+      - name: Ejecutar scraper
+        run: python scraper.py
+
+      - name: Ver archivos
+        run: ls -R data/
+
+      - name: Commit automático
+        run: |
+          git config --global user.name "Bot"
           git config --global user.email "bot@github.com"
-          
+
           git add data/
-          
+
           if git diff --staged --quiet; then
-            echo "No hay cambios para guardar."
+            echo "Sin cambios"
           else
-            git commit -m "Reporte Diario: $(date +'%Y-%m-%d') [skip ci]"
+            git commit -m "Reporte diario $(date +'%Y-%m-%d')"
             git pull --rebase origin main
             git push
           fi
