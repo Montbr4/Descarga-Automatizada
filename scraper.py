@@ -29,6 +29,7 @@ print("Carpeta:", DOWNLOAD_DIR)
 
 opts = Options()
 opts.binary_location = "/usr/bin/google-chrome"
+
 opts.add_argument("--headless=new")
 opts.add_argument("--no-sandbox")
 opts.add_argument("--disable-dev-shm-usage")
@@ -47,32 +48,34 @@ driver.execute_cdp_cmd(
     {"behavior": "allow", "downloadPath": DOWNLOAD_DIR}
 )
 
-wait = WebDriverWait(driver, 60)
+wait = WebDriverWait(driver, 90)
 
 try:
 
     print("Abriendo portal")
     driver.get(URL)
 
-    print("Esperando datos reales en la tabla")
+    print("Esperando carga AJAX real de DataTables")
 
     wait.until(lambda d: d.execute_script("""
-        let table = document.querySelector('table.dataTable');
-        if (!table) return false;
+        if (!window.jQuery || !$.fn.dataTable) return false;
 
-        let rows = table.querySelectorAll('tbody tr');
-        return rows.length > 0;
+        let tables = $.fn.dataTable.tables();
+        if (!tables.length) return false;
+
+        let api = $(tables[0]).DataTable();
+        return api.data().length > 0;
     """))
 
     rows = driver.execute_script("""
-        return document.querySelectorAll(
-            'table.dataTable tbody tr'
-        ).length;
+        let tables = $.fn.dataTable.tables();
+        let api = $(tables[0]).DataTable();
+        return api.data().length;
     """)
 
-    print(f"Filas detectadas: {rows}")
+    print(f"DataTables cargó {rows} registros")
 
-    print("Esperando botón Excel")
+    print("Buscando botón Excel")
 
     excel_btn = wait.until(EC.element_to_be_clickable((
         By.CSS_SELECTOR, "button.buttons-excel"
@@ -113,10 +116,12 @@ try:
 
     print("DESCARGA EXITOSA")
     print("Archivo:", FINAL_FILE)
+    print("Tamaño:", os.path.getsize(FINAL_FILE), "bytes")
 
 except Exception as e:
 
     print("ERROR:", e)
+
     driver.save_screenshot(
         os.path.join(DOWNLOAD_DIR, "debug_error.png")
     )
@@ -124,4 +129,4 @@ except Exception as e:
 finally:
 
     driver.quit()
-    print("Fin del proceso")
+    print("Fin")
