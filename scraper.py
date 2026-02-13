@@ -8,12 +8,17 @@ URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307
 
 async def main():
 
-    print("Iniciando navegador")
+    print("\nINICIO SCRAPER")
 
     zona = pytz.timezone("America/Lima")
     fecha = datetime.now(zona).strftime("%Y-%m-%d")
 
-    carpeta = "data"
+    base_dir = os.getcwd()
+    carpeta = os.path.join(base_dir, "data")
+
+    print("Directorio actual:", base_dir)
+    print("Creando carpeta:", carpeta)
+
     os.makedirs(carpeta, exist_ok=True)
 
     nombre = f"reporte_visitas_{fecha}.xlsx"
@@ -42,8 +47,14 @@ async def main():
         download = await download_info.value
         await download.save_as(ruta)
 
-        print("Archivo guardado en:", ruta)
+        print("\nARCHIVO GUARDADO:")
+        print(ruta)
 
         await browser.close()
+
+    print("\nContenido de /data:")
+    print(os.listdir(carpeta))
+
+    print("\nFIN")
 
 asyncio.run(main())
