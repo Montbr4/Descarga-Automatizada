@@ -1,145 +1,76 @@
-import os
 import time
-import shutil
-from datetime import datetime, timedelta
-import pytz
-
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import os
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
 
 URL = "https://visitas.servicios.gob.pe/consultas/index.php?ruc_enti=20504743307"
 
-zona = pytz.timezone("America/Lima")
-hoy = datetime.now(zona)
-ayer = hoy - timedelta(days=1)
+DOWNLOAD_DIR = os.getcwd()
 
-fecha_inicio = ayer.strftime("%d/%m/%Y")
-fecha_fin = hoy.strftime("%d/%m/%Y")
-fecha_folder = hoy.strftime("%Y-%m-%d")
+def main():
 
-BASE = os.path.dirname(os.path.abspath(__file__))
-DOWNLOAD_DIR = os.path.join(BASE, "data", fecha_folder)
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    print("Iniciando navegador stealth")
 
-FINAL_FILE = os.path.join(
-    DOWNLOAD_DIR,
-    f"reporte_visitas_{fecha_folder}.xlsx"
-)
+    options = uc.ChromeOptions()
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-blink-features=AutomationControlled")
 
-print("Carpeta:", DOWNLOAD_DIR)
+    prefs = {
+        "download.default_directory": DOWNLOAD_DIR,
+        "download.prompt_for_download": False,
+    }
 
-opts = Options()
-opts.binary_location = "/usr/bin/google-chrome"
-opts.add_argument("--headless=new")
-opts.add_argument("--no-sandbox")
-opts.add_argument("--disable-dev-shm-usage")
-opts.add_argument("--window-size=1920,1080")
+    options.add_experimental_option("prefs", prefs)
 
-prefs = {
-    "download.default_directory": DOWNLOAD_DIR,
-    "download.prompt_for_download": False,
-}
-opts.add_experimental_option("prefs", prefs)
+    driver = uc.Chrome(options=options)
+    wait = WebDriverWait(driver, 30)
 
-driver = webdriver.Chrome(options=opts)
+    try:
 
-driver.execute_cdp_cmd(
-    "Page.setDownloadBehavior",
-    {"behavior": "allow", "downloadPath": DOWNLOAD_DIR}
-)
+        print("Abriendo portal")
+        driver.get(URL)
 
-wait = WebDriverWait(driver, 60)
+        print("Esperando botón Buscar")
 
-try:
+        buscar = wait.until(lambda d: d.find_element(
+            By.XPATH, "//button[contains(., 'Buscar')]"
+        ))
 
-    print("Abriendo portal")
-    driver.get(URL)
+        time.sleep(2)
 
-    print("Configurando rango de fechas")
+        print("Ejecutando búsqueda")
+        buscar.click()
 
-    fecha_input = wait.until(EC.presence_of_element_located((
-        By.CSS_SELECTOR, "input[name='daterange']"
-    )))
+        print("Esperando datos reales")
 
-    driver.execute_script("arguments[0].value='';", fecha_input)
-    fecha_input.send_keys(f"{fecha_inicio} - {fecha_fin}")
+        wait.until(lambda d: d.execute_script("""
+            let table = document.querySelector("table.dataTable");
+            if (!table) return false;
 
-    print("Ejecutando búsqueda")
+            let rows = table.querySelectorAll("tbody tr");
+            if (rows.length === 0) return false;
 
-    buscar_btn = driver.find_element(
-        By.XPATH, "//button[contains(.,'Buscar')]"
-    )
-    buscar_btn.click()
+            return !rows[0].innerText.includes("No hay datos");
+        """))
 
-    time.sleep(5)
+        print("Datos cargados")
 
-    print("Esperando datos")
+        excel = wait.until(lambda d: d.find_element(
+            By.XPATH, "//button[contains(., 'Excel')]"
+        ))
 
-    wait.until(lambda d: d.execute_script("""
-        if (!window.jQuery || !$.fn.dataTable) return false;
-        let api = $( $.fn.dataTable.tables()[0] ).DataTable();
-        return api.data().length >= 0;
-    """))
+        print("Descargando Excel")
+        excel.click()
 
-    registros = driver.execute_script("""
-        let api = $( $.fn.dataTable.tables()[0] ).DataTable();
-        return api.data().length;
-    """)
+        time.sleep(10)
 
-    print(f"Registros encontrados: {registros}")
+        print("Descarga finalizada")
 
-    if registros == 0:
-        raise Exception("No hay registros para exportar")
-        
-    excel_btn = wait.until(EC.element_to_be_clickable((
-        By.CSS_SELECTOR, "button.buttons-excel"
-    )))
+    finally:
+        driver.quit()
+        print("Fin")
 
-    before = set(os.listdir(DOWNLOAD_DIR))
-
-    print("Descargando Excel")
-    driver.execute_script("arguments[0].click();", excel_btn)
-
-    timeout = 120
-    start = time.time()
-    downloaded = None
-
-    while time.time() - start < timeout:
-        files = set(os.listdir(DOWNLOAD_DIR))
-        diff = files - before
-
-        for f in diff:
-            if not f.endswith(".crdownload"):
-                downloaded = f
-                break
-
-        if downloaded:
-            break
-
-        time.sleep(1)
-
-    if not downloaded:
-        raise Exception("Descarga no detectada")
-
-    shutil.move(
-        os.path.join(DOWNLOAD_DIR, downloaded),
-        FINAL_FILE
-    )
-
-    print("DESCARGA EXITOSA")
-
-except Exception as e:
-
-    print("ERROR:", e)
-    driver.save_screenshot(
-        os.path.join(DOWNLOAD_DIR, "debug_error.png")
-    )
-
-finally:
-
-    driver.quit()
-    print("Fin del proceso")
+if __name__ == "__main__":
+    main()
