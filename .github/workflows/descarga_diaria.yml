@@ -2,15 +2,15 @@ name: Descarga visitas diaria
 
 on:
   schedule:
-    - cron: "0 1 * * *"
+    - cron: '0 1 * * *'
   workflow_dispatch:
 
 jobs:
-  descargar:
+  run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Clonar repo
         uses: actions/checkout@v4
 
       - name: Instalar Python
@@ -18,22 +18,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Instalar Chrome
-        uses: browser-actions/setup-chrome@v1
-
-      - name: Instalar librerías
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
 
       - name: Ejecutar scraper
         run: python scraper.py
-        
-      - name: Ver archivos
-        run: ls -R data || echo "No se generó carpeta data"
 
-      - name: Subir resultado
+      - name: Subir archivos
         uses: actions/upload-artifact@v4
         with:
-          name: reporte-visitas
+          name: visitas
           path: data/
